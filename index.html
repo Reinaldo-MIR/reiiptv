@@ -650,6 +650,13 @@ let G_CURRENT_SERIES_NAME = null;
 let G_CURRENT_SERIES_THUMB = null;
 let G_CURRENT_SEASON_NUM = null;
 
+// Função auxiliar para redirecionar chamadas da API Xtream através do proxy CORS
+function obterUrlAPI(queryParams) {
+    const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
+    const fullUrl = `${baseUrl}/player_api.php?username=${G_USER}&password=${G_PASS}${queryParams ? '&' + queryParams : ''}`;
+    return 'https://corsproxy.io/?' + encodeURIComponent(fullUrl);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const video = document.getElementById('main-video');
     const progressBar = document.getElementById('progress-bar');
@@ -847,7 +854,8 @@ async function tentarLogin() {
     G_PASS = document.getElementById('pass').value.trim();
     
     try {
-        const res = await fetch(`${G_URL}/player_api.php?username=${G_USER}&password=${G_PASS}`);
+        const url = obterUrlAPI('');
+        const res = await fetch(url);
         if (!res.ok) throw new Error("Servidor indisponível");
         
         const data = await res.json();
@@ -976,7 +984,8 @@ function carregarFavoritosNaGrid() {
 async function carregarCategorias() {
     const action = G_MODE === 'live' ? 'get_live_categories' : (G_MODE === 'vod' ? 'get_vod_categories' : 'get_series_categories');
     try {
-        const res = await fetch(`${G_URL}/player_api.php?username=${G_USER}&password=${G_PASS}&action=${action}`);
+        const url = obterUrlAPI(`action=${action}`);
+        const res = await fetch(url);
         const cats = await res.json();
         const list = document.getElementById('category-list');
         list.innerHTML = "";
@@ -1028,9 +1037,10 @@ async function carregarCategorias() {
 async function carregarConteudo(id, nome) {
     toggleLoader(true, "CARREGANDO...");
     const action = G_MODE === 'live' ? 'get_live_streams' : (G_MODE === 'vod' ? 'get_vod_streams' : 'get_series');
-    const q = id !== 'all' ? `&category_id=${id}` : '';
+    const q = id !== 'all' ? `action=${action}&category_id=${id}` : `action=${action}`;
     try {
-        const res = await fetch(`${G_URL}/player_api.php?username=${G_USER}&password=${G_PASS}&action=${action}${q}`);
+        const url = obterUrlAPI(q);
+        const res = await fetch(url);
         const data = await res.json();
         G_DATA_ORIGINAL = Array.isArray(data) ? data : [];
 
@@ -1155,7 +1165,8 @@ function iniciarPreviewCanal(id, nome, epgTitle) {
     // Aguarda um pequeno atraso (300ms) no foco para evitar múltiplos downloads ao navegar rápido com o comando
     previewTimeout = setTimeout(() => {
         const previewVideo = document.getElementById('preview-video');
-        const url = `${G_URL}/live/${G_USER}/${G_PASS}/${id}.m3u8`;
+        const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
+        const url = `${baseUrl}/live/${G_USER}/${G_PASS}/${id}.m3u8`;
 
         if (hlsPreview) {
             hlsPreview.destroy();
@@ -1336,7 +1347,8 @@ async function abrirDashboardMedia(item, id, nome, thumb, ext) {
             document.getElementById('media-genre-badge').textContent = "🎬 Filme";
             document.getElementById('media-extra-info').textContent = ext.toUpperCase();
             
-            const res = await fetch(`${G_URL}/player_api.php?username=${G_USER}&password=${G_PASS}&action=get_vod_info&vod_id=${id}`);
+            const url = obterUrlAPI(`action=get_vod_info&vod_id=${id}`);
+            const res = await fetch(url);
             const data = await res.json();
             
             if (data && data.info) {
@@ -1363,7 +1375,8 @@ async function abrirDashboardMedia(item, id, nome, thumb, ext) {
             G_CURRENT_SERIES_THUMB = thumb;
             document.getElementById('media-genre-badge').textContent = "🍿 Série";
 
-            const res = await fetch(`${G_URL}/player_api.php?username=${G_USER}&password=${G_PASS}&action=get_series_info&series_id=${id}`);
+            const url = obterUrlAPI(`action=get_series_info&series_id=${id}`);
+            const res = await fetch(url);
             const data = await res.json();
             
             if (data && data.info) {
@@ -1494,7 +1507,8 @@ function playMedia(id, nome, ext) {
     document.getElementById('controls-container').style.display = G_MODE === 'live' ? 'none' : 'block';
     
     const type = G_MODE === 'live' ? 'live' : (G_MODE === 'series' ? 'series' : 'movie');
-    const url = `${G_URL}/${type}/${G_USER}/${G_PASS}/${id}.${G_MODE === 'live' ? 'm3u8' : (ext || 'mp4')}`;
+    const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
+    const url = `${baseUrl}/${type}/${G_USER}/${G_PASS}/${id}.${G_MODE === 'live' ? 'm3u8' : (ext || 'mp4')}`;
     
     if(hls) { hls.destroy(); hls = null; }
     if(url.includes('m3u8') && Hls.isSupported()) {
