@@ -506,7 +506,7 @@
     <div class="login-wrapper">
         <div class="login-box">
             <h1><span class="brand-rei">REI</span><span class="brand-iptv">IPTV</span></h1>
-            <input type="text" id="url" class="form-control focusable" placeholder="URL do Servidor">
+            <input type="text" id="url" class="form-control focusable" placeholder="Ex: http://meuservidor.com:8080">
             <input type="text" id="user" class="form-control focusable" placeholder="Usuário">
             <input type="password" id="pass" class="form-control focusable" placeholder="Senha">
             <button id="btn-login" class="btn btn-primary focusable" style="width: 100%; margin-top: 15px;">ENTRAR</button>
@@ -580,12 +580,10 @@
                 
                 <p id="media-plot" style="color: var(--text-secondary); line-height: 1.6; max-width: 750px; font-size: 1rem; text-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-bottom: 25px;">Nenhuma sinopse disponível.</p>
                 
-                <!-- Botões de Ação Principais na Tela de Detalhes -->
                 <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
                     <div id="movie-actions-block" style="display: none;">
                         <button id="btn-watch-movie" class="btn btn-primary focusable" style="display: flex; align-items: center; gap: 8px; font-size: 1.1rem; padding: 14px 32px;" tabindex="0">▶ ASSISTIR FILME</button>
                     </div>
-                    <!-- Botão de Favoritar adicionado para Filmes e Séries -->
                     <button id="btn-toggle-fav-details" class="btn btn-secondary focusable" style="font-size: 1.1rem; padding: 14px 24px; display: flex; align-items: center; gap: 8px;" tabindex="0">⭐ FAVORITAR</button>
                 </div>
             </div>
@@ -639,7 +637,7 @@ let G_PAGE = 1;
 const ITENS_POR_PAGINA = 40;
 let isFetching = false;
 
-let G_CURRENT_ITEM_OBJECT = null; // Guarda o objeto completo do filme ou série em foco
+let G_CURRENT_ITEM_OBJECT = null;
 let G_CURRENT_MEDIA_ID = null;
 let G_CURRENT_MEDIA_NAME = null;
 let G_CURRENT_MEDIA_THUMB = null;
@@ -650,11 +648,20 @@ let G_CURRENT_SERIES_NAME = null;
 let G_CURRENT_SERIES_THUMB = null;
 let G_CURRENT_SEASON_NUM = null;
 
-// Função auxiliar para redirecionar chamadas da API Xtream através do proxy CORS
+// Função sem Proxy CORS - Conecta diretamente ao Servidor HTTP do Usuário
 function obterUrlAPI(queryParams) {
-    const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
-    const fullUrl = `${baseUrl}/player_api.php?username=${G_USER}&password=${G_PASS}${queryParams ? '&' + queryParams : ''}`;
-    return 'https://corsproxy.io/?' + encodeURIComponent(fullUrl);
+    let baseUrl = G_URL.trim();
+    
+    // Garante que a URL inicia com o protocolo HTTP caso o usuário esqueça
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        baseUrl = 'http://' + baseUrl;
+    }
+    
+    if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.slice(0, -1);
+    }
+    
+    return `${baseUrl}/player_api.php?username=${encodeURIComponent(G_USER)}&password=${encodeURIComponent(G_PASS)}${queryParams ? '&' + queryParams : ''}`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -868,7 +875,7 @@ async function tentarLogin() {
             alert("Credenciais inválidas! Verifique usuário e senha."); 
         }
     } catch(e) { 
-        alert("Erro de conexão! Verifique se a URL do servidor está correta."); 
+        alert("Erro de conexão com o servidor HTTP! Verifique se a URL/porta está correta e se a aplicação não está rodando via HTTPS."); 
     } finally { 
         toggleLoader(false); 
     }
@@ -1131,7 +1138,6 @@ function carregarMaisItens() {
             div.appendChild(pEpg);
             div.appendChild(progressBg);
 
-            // Evento de foco no canal para acionar o preview automático
             div.addEventListener('focus', () => {
                 iniciarPreviewCanal(id, item.name || "Canal", epgTexto);
             });
@@ -1162,10 +1168,12 @@ function iniciarPreviewCanal(id, nome, epgTitle) {
     
     activePreviewItem = { id, name: nome };
 
-    // Aguarda um pequeno atraso (300ms) no foco para evitar múltiplos downloads ao navegar rápido com o comando
     previewTimeout = setTimeout(() => {
         const previewVideo = document.getElementById('preview-video');
-        const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
+        let baseUrl = G_URL.trim();
+        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) { baseUrl = 'http://' + baseUrl; }
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
         const url = `${baseUrl}/live/${G_USER}/${G_PASS}/${id}.m3u8`;
 
         if (hlsPreview) {
@@ -1330,7 +1338,7 @@ function renderizarContinuarAssistindo() {
 async function abrirDashboardMedia(item, id, nome, thumb, ext) {
     toggleLoader(true, "CARREGANDO DETALHES...");
     
-    G_CURRENT_ITEM_OBJECT = item; // Guarda para referenciar na gravação de favoritos
+    G_CURRENT_ITEM_OBJECT = item;
     atualizarBotaoFavoritoDetalhes(item);
 
     document.getElementById('media-title').textContent = nome;
@@ -1507,7 +1515,10 @@ function playMedia(id, nome, ext) {
     document.getElementById('controls-container').style.display = G_MODE === 'live' ? 'none' : 'block';
     
     const type = G_MODE === 'live' ? 'live' : (G_MODE === 'series' ? 'series' : 'movie');
-    const baseUrl = G_URL.endsWith('/') ? G_URL.slice(0, -1) : G_URL;
+    let baseUrl = G_URL.trim();
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) { baseUrl = 'http://' + baseUrl; }
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
     const url = `${baseUrl}/${type}/${G_USER}/${G_PASS}/${id}.${G_MODE === 'live' ? 'm3u8' : (ext || 'mp4')}`;
     
     if(hls) { hls.destroy(); hls = null; }
